@@ -1,0 +1,109 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml
+# ──────────────────────────────────────────────────────────────────────────────
+# Orchestrates the semantic search service for local development & CI.
+#
+# Services
+# ─────────
+#   api   – The FastAPI / Uvicorn application.
+#
+# No database, no Redis, no sidecar – the semantic cache is entirely in-memory
+# as required by the spec.  The compose file is kept intentionally minimal to
+# reflect this lightweight architecture.
+#
+# Usage
+# ─────
+#   Build & start:    docker compose up --build
+#   Stop & remove:    docker compose down
+#   Tail logs:        docker compose logs -f api
+#   Live query test:  curl -s -X POST http://localhost:8000/query \
+#                       -H "Content-Type: application/json" \
+#                       -d '{"query": "neural networks in robotics", "top_k": 5}'
+#
+# Environment variable overrides
+# ──────────────────────────────
+# All tuneable parameters (threshold, cache size, GMM range) are read from
+# the environment.  You can override them in a .env file or via shell:
+#
+#   SIMILARITY_THRESHOLD=0.90 docker compose up
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Target the final runtime stage; the builder stage is discarded.
+      target: runtime
+
+    image: fuzzy-cluster-cache:latest
+
+    container_name: fuzzy_cache_api
+
+    ports:
+      # Map host port 8000 → container port 8000.
+      # Change the host-side port (left of :) for multi-service deployments.
+      - "8000:8000"
+
+    environment:
+      # ── semantic cache tuning ────────────────────────────────────────────
+      # See app/core/cache.py module docstring for threshold trade-off analysis.
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.85}
+      CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1024}
+
+      # ── embedding model ──────────────────────────────────────────────────
+      # Override to swap to a larger model (e.g., all-mpnet-base-v2) without
+      # rebuilding the image.
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+
+      # ── GMM clustering ───────────────────────────────────────────────────
+      # Narrowing this range speeds up startup but may miss the true BIC minimum.
+      GMM_K_MIN: ${GMM_K_MIN:-5}
+      GMM_K_MAX: ${GMM_K_MAX:-30}
+
+      # ── dataset ──────────────────────────────────────────────────────────
+      # "train" for faster startup during development; "all" for production.
+      NEWSGROUPS_SUBSET: ${NEWSGROUPS_SUBSET:-all}
+
+      # Sentence-transformers caches downloaded models here.
+      # Mounting as a volume (below) persists the cache across container
+      # restarts, avoiding repeated downloads.
+      SENTENCE_TRANSFORMERS_HOME: /home/appuser/.cache/sentence_transformers
+
+    volumes:
+      # Persist the HuggingFace model cache so the ~90 MB model download only
+      # happens once, even after `docker compose down` + `up`.
+      - model_cache:/home/appuser/.cache/sentence_transformers
+
+    # The /health endpoint is the readiness signal.
+    # start_period covers the ~60–120 s startup time for model download + GMM fit.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+    restart: unless-stopped
+
+    # Resource limits prevent a runaway GMM fit from starving other containers.
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+# ── named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  model_cache:
+    driver: local

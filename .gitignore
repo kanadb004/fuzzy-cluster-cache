@@ -1,0 +1,20 @@
+# Python & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# Mac OS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data & ML Models (Do not push heavy weights or datasets)
+*.faiss
+*.pkl
+.cache/
+sentence_transformers/

@@ -1,0 +1,53 @@
+# ── version control ────────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Python artefacts ───────────────────────────────────────────────────────────
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info
+dist/
+build/
+.eggs/
+
+# ── virtual environments ───────────────────────────────────────────────────────
+.venv
+venv/
+env/
+ENV/
+
+# ── type checker & linter caches ──────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# ── test infrastructure ────────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# ── notebooks (analysis only; not needed in the runtime image) ─────────────────
+notebooks/
+
+# ── docs ───────────────────────────────────────────────────────────────────────
+docs/
+*.md
+
+# ── OS noise ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── local model / data caches (can be hundreds of MB) ─────────────────────────
+.cache/
+models/
+data/
+
+# ── CI / secrets ──────────────────────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
